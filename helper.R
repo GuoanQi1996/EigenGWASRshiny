@@ -56,86 +56,297 @@ RunPlink <- function(dat, PC, inbred=T, plink2) {
 }
 #FileSave functions
 
-manhattan <- function(dataframe, colors=c("gray10", "gray50"), ymax="max", limitchromosomes=NULL, suggestiveline=-log10(1e-5), genomewideline=NULL, title="", annotate=NULL, annotatePvalue=NULL, ...) {
+# Prepare the compact summary of p-values for QQ-plot
+qqPlotCache = function(pvalues, ntests = NULL, ismlog10 = FALSE){
+  if(is.null(ntests))
+    ntests = length(pvalues);
+  
+  if(ismlog10) {
+    ypvs = pvalues;
+  } else {
+    ypvs = -log10(pvalues);
+  }
+  xpvs = -log10(seq_along(ypvs) / (ntests+1));
+  
+  if(is.unsorted(-ypvs))
+    ypvs = sort.int(ypvs, decreasing = TRUE);
+  
+  if(length(ypvs)*2 > ntests) {
+    lambda =
+      qchisq(p = 0.1^ypvs[ntests/2], df = 1, lower.tail = FALSE) / 
+      qchisq(p = 0.5, df = 1, lower.tail = FALSE);
+  } else {
+    lambda = NULL;
+  }
+  
+  if(length(ypvs) > 1000) {
+    # need to filter a bit, make the plotting faster
+    levels = as.integer( (xpvs - xpvs[1])/(tail(xpvs,1) - xpvs[1]) * 2000);
+    keep = c(TRUE, diff(levels)!=0);
+    levels = as.integer( (ypvs - ypvs[1])/(tail(ypvs,1) - ypvs[1]) * 2000);
+    keep = keep | c(TRUE, diff(levels)!=0);
+    keep = which(keep);
+    ypvs = ypvs[keep];
+    xpvs = xpvs[keep];
+  } else {
+    keep = seq_along(ypvs)
+  }
+  
+  qq = list(
+    xpvs = xpvs, # p-values expected under null
+    ypvs = ypvs, # observer p-values
+    keep = keep, # indices of the preserved p-values
+    ntests = ntests, # Number of tests
+    lambda = lambda  # Estimate of inflation factor lambda
+  );
+  class(qq) = "qqPlotInfo";
+  return(qq);
+}
 
-  d=dataframe
-  if (!("CHR" %in% names(d) & "BP" %in% names(d) & "P" %in% names(d))) stop("Make sure your data frame contains columns CHR, BP, and P")
-  if (!is.null(limitchromosomes)) {
-    d=d[d$CHR %in% limitchromosomes, ]
+# Create QQ-plot from p-values or prepared summary
+qqPlotQ = function(
+  x, 
+  ntests = NULL, 
+  ismlog10 = FALSE, 
+  ci.level = 0.05, 
+  ylim = NULL, 
+  newplot = TRUE, 
+  col = "grey", 
+  cex = 0.5, 
+  yaxmax = NULL, 
+  lwd = 3, 
+  col.band = "red",
+  makelegend = TRUE,
+  title = "",
+  xlab = expression(
+    paste("\u2013", " log"[10]*"(", italic("P"), ") expected")),
+  ylab = expression(
+    paste("\u2013", " log"[10]*"(", italic("P"), "), observed"))
+){
+  
+  # Get compact summary of p-values for QQ-plot
+  if( methods::is(x, "qqPlotInfo") ){
+    qq = x;
+  } else {
+    qq = qqPlotPrepare(pvalues = x, ntests = ntests, ismlog10 = ismlog10);
   }
   
-  d=subset(na.omit(d[order(d$CHR, d$BP), ]), (P>0 & P<=1)) # remove na's, sort, and keep only 0<P<=1
-  d$logp = -log10(d$P)
-  d$pos=NA
-  ticks=NULL
-  lastbase=0 #  colors <- rep(colors,max(d$CHR))[1:max(d$CHR)]
-  colors <- rep(colors,max(d$CHR))[1:length(unique(d$CHR))]
-  
-  if (ymax=="max") ymax<-ceiling(max(d$logp))
-  if (ymax<8) ymax<-8
-  numchroms=length(unique(d$CHR))
-  if (numchroms==1) {
-    d$pos=d$BP
-    ticks=floor(length(d$pos))/2+1
+  # Axis ranges
+  mx = head(qq$xpvs,1) * 1.05;
+  if( is.null(ylim) ) {
+    my = max(mx, head(qq$ypvs,1) * 1.05) ;
+    ylim = c(0, my);
   } else {
-    Uchr=unique(d$CHR)
-    for (i in 1:length(Uchr)) {
-      if (i==1) {
-        d[d$CHR==Uchr[i], ]$pos=d[d$CHR==Uchr[i], ]$BP
-      } else {
-        lastbase=lastbase+tail(subset(d, CHR==Uchr[i-1])$BP, 1)
-        d[d$CHR==Uchr[i], ]$pos=d[d$CHR==Uchr[i], ]$BP+lastbase
+    my = ylim[2];
+  }
+  if(is.null(yaxmax))
+    yaxmax = floor(my);
+  
+  if(newplot){
+    plot(
+      x = NA, 
+      y = NA, 
+      ylim = ylim, 
+      xlim = c(0, mx), 
+      xaxs = "i", 
+      yaxs = "i", 
+      xlab = xlab,
+      ylab = ylab,
+      axes = FALSE);
+    axistep = floor(mx/5);
+    axis(1, seq(0, mx, axistep), lwd = lwd);
+    axistep = floor(yaxmax/5);
+    axis(2, seq(0, yaxmax, axistep), lwd = lwd);
+    abline(a = 0, b = 1, col = col.band, lwd = lwd, lty =2);
+    points(qq$xpvs, qq$ypvs, col = col, cex = cex, pch = 19);
+    
+    if( !is.null(ci.level) ){
+      if( (ci.level>0)&(ci.level<1) ){
+        quantiles = qbeta(
+          p = rep(c(ci.level/2,1-ci.level/2), each=length(qq$xpvs)), 
+          shape1 = qq$keep, 
+          shape2 = qq$ntests - qq$keep + 1);
+        quantiles = matrix(quantiles, ncol=2);
+        
+        lines( qq$xpvs, -log10(quantiles[,1]), col = col.band, lwd = lwd, lty =2);
+        lines( qq$xpvs, -log10(quantiles[,2]), col = col.band, lwd = lwd, lty =2);
       }
-      ticks=c(ticks, d[d$CHR==Uchr[i], ]$pos[floor(length(d[d$CHR==Uchr[i], ]$pos)/2)+1])
+    }
+    if(makelegend){
+      if( !is.null(ci.level) ){
+        legend(
+          "topleft", 
+          legend = c(
+            expression(paste(italic("Raw P"), " value")),
+            expression(paste(lambda[GC],italic(" corrected P")," value")),
+            sprintf("%.0f%% CI",100-ci.level*100)),
+          lwd = c(0, 0, lwd), 
+          pch = c(19, 19, NA_integer_), 
+          lty = c(0, 0, 2), 
+          col = c(col, "darkblue", col.band),
+          box.col = "transparent",
+          bg = "transparent");
+      } else {
+        legend(
+          "topleft", 
+          legend = c(
+            expression(paste(italic("Raw P"), " value")),
+            expression(paste(lambda[GC],italic(" corrected P")," value"))
+          ),
+          lwd = c(0, 0), 
+          pch = c(19, 19), 
+          lty = c(0, 0), 
+          col = c(col, "darkblue"),
+          box.col = "transparent",
+          bg = "transparent");
+      }
+    }
+    title(title);
+  } else {
+    points(qq$xpvs, qq$ypvs, col = "darkblue", cex = cex, pch = 19);
+  }
+  
+  #if( !is.null(qq$lambda) ){
+  #    lastr = sprintf("%.3f", qq$lambda);
+  #    legend("bottom", legend = bquote(lambda == .(lastr)), bty = "n")
+  #}
+  return(invisible(qq));
+}
+
+# Prepare the compact summary of p-values for Manhattan plot
+manhattanCache = function(
+  pvalues,
+  chr,
+  pos,
+  ismlog10 = FALSE,
+  chrmargins = 5e6){
+  # chr = locs[,1]; pos = locs[,2]; pvalues = mwas[,3]
+  # z = getMWASandLocations(param)
+  # chr = z$chr; pos = z$start; pvalues = z$`p-value`; 
+  # ismlog10 = FALSE; chrmargins = 0;
+  
+  stopifnot( length(pvalues) == length(chr) );
+  stopifnot( length(pvalues) == length(pos) );
+  
+  chr = factor(chr)
+  
+  # max of each chromosome
+  poslist = split(pos, chr, drop = FALSE);
+  poslist[vapply(poslist, length, 0)==0] = list(0);
+  chrmax = vapply(poslist, max, 0) + 0;# + chrmargins;
+  
+  # chromosome starts on the plot
+  names(chrmax) = NULL;
+  offsets = c(0, cumsum(chrmax)) + chrmargins;
+  names(offsets)[seq_along(poslist)] = levels(chr);
+  
+  # within plot coordinates
+  x0 = offsets[unclass(chr)] + pos;
+  if(ismlog10) {
+    y0 = pvalues;
+  } else {
+    y0 = -log10(pvalues);
+  }
+  
+  # Prune the data
+  yfac = as.integer(y0*100)+1L;
+  yorder = sort.list(yfac);
+  levels(yfac) = as.character(seq_len(max(yfac)));
+  class(yfac) = "factor";
+  
+  ygroup = split(seq_along(yfac), yfac);
+  for( i in seq_along(ygroup)){ # i=1
+    if( length(ygroup[[i]]) > 300 ){
+      ygroup[[i]] = sample(ygroup[[i]], size = 300, replace = FALSE);
     }
   }
-  if (numchroms==1) {
-    with(d, plot(main=title, pos, logp, ylim=c(0,ymax), ylab=expression(-log[10](italic(p))), xlab=paste("Chromosome",unique(d$CHR),"position"), ...))
-  } else {
-    with(d, plot(main=title, pos, logp, ylim=c(0,ymax), ylab=expression(-log[10](italic(p))), xlab="Chromosome", xaxt="n", type="n", ...))
-    axis(1, at=ticks, lab=unique(d$CHR), ...)
-    icol=1
-    Uchr=unique(d$CHR)
-    for (i in 1:length(Uchr)) {
-      with(d[d$CHR==Uchr[i], ], points(pos, logp, col=colors[icol], ...))
-      icol=icol+1
-    }
-  }
-  if (!is.null(annotate)) {
-    d.annotate=d[which(d$SNP %in% annotate), ]
-    with(d.annotate, points(pos, logp, col="green3", ...))
-  }
-  #  if (suggestiveline) abline(h=suggestiveline, col="blue")
-  if (!is.null(genomewideline)) {
-    abline(h=genomewideline, col="gray")
-  } else {
-    abline(h=-log10(0.05/nrow(d)), col="gray")    
-  }
-  if (!is.null(annotatePvalue)){
-    topHits = d[order(d$P),][c(1:5),]
-    textxy(topHits$pos, -log10(topHits$P), offset = 0.625, labs = topHits$SNP, cex = 0.45)
-  }
+  # sum(vapply(ygroup, length, 0))
+  keep = unlist(ygroup, use.names = FALSE);
+  
+  # Color code
+  colindex = unclass(chr);
+  
+  # Chromosome names
+  chrnames = gsub("chr", "", levels(chr));
+  
+  # Return minimum object;
+  man = list(
+    x = x0[keep],
+    y = y0[keep],
+    colindex = colindex[keep],
+    offsets = offsets,
+    chrnames = chrnames,
+    chrmargins = chrmargins
+  );
+  class(man) = "manPlotInfo";
+  return(man);
 }
-# add text to point in graph
-textxy <- function (X, Y, labs, m = c(0, 0), cex = 0.5, offset = 0.8, ...) 
-{
-    posXposY <- ((X >= m[1]) & ((Y >= m[2])))
-    posXnegY <- ((X >= m[1]) & ((Y <  m[2])))
-    negXposY <- ((X <  m[1]) & ((Y >= m[2])))
-    negXnegY <- ((X <  m[1]) & ((Y <  m[2])))
-    if (sum(posXposY) > 0) 
-        text(X[posXposY], Y[posXposY], labs[posXposY], adj = c(0.5-offset, 
-            0.5-offset), cex = cex, ...)
-    if (sum(posXnegY) > 0) 
-        text(X[posXnegY], Y[posXnegY], labs[posXnegY], adj = c(0.5-offset, 
-            0.5+offset), cex = cex, ...)
-    if (sum(negXposY) > 0) 
-        text(X[negXposY], Y[negXposY], labs[negXposY], adj = c(0.5+offset, 
-            0.5-offset), cex = cex, ...)
-    if (sum(negXnegY) > 0) 
-        text(X[negXnegY], Y[negXnegY], labs[negXnegY], adj = c(0.5+offset, 
-            0.5+offset), cex = cex, ...)
+
+# Create Manhattan plot from prepared summary
+manhattan = function(
+  man,
+  ylim = NULL,
+  colorSet = c("steelblue4", "#2C82D1", "#4CB2D1"),
+  yaxmax = NULL,
+  significant = 1e-5,
+  lwd = 3,
+  cex = 1,
+  title = ""){
+  
+  if( !methods::is(man, "manPlotInfo") )
+    stop("The \"man\" parameter is not produced by manPlotPrepare().");
+  
+  # Axis ranges
+  if(is.null(ylim)) {
+    my = max(man$y) * 1.05;
+    ylim = c(0,my);
+  } else {
+    my = ylim[2];
+  }
+  if(is.null(yaxmax))
+    yaxmax = floor(my);
+  
+  # Plot frame
+  plot(
+    x = NA,
+    y = NA, 
+    xlim = c(0, tail(man$offsets,1)), 
+    ylim = ylim, 
+    xaxs = "i", 
+    yaxs = "i",
+    xlab = "Chromosome", 
+    ylab = expression(
+      paste("\u2013", " log"[10]*"(", italic("p"), ")")),
+    axes = FALSE);
+  axis(
+    side = 1,
+    at = man$offsets,
+    labels = rep("", length(man$offsets)),
+    lwd = lwd);
+  axis(
+    side = 1,
+    at = (man$offsets[-1] + man$offsets[-length(man$offsets)])/2,
+    labels = man$chrnames,
+    tick = FALSE,
+    lwd = lwd);
+  axis(
+    side = 2,
+    at = seq(0, yaxmax, floor(yaxmax/5)),
+    lwd = lwd);
+  
+  # plot points in palette color
+  oldPal = palette(colorSet);
+  points(
+    x = man$x,
+    y = man$y,
+    pch = 16,
+    col = ((man$colindex-1L) %% length(colorSet)) + 1L,
+    cex = cex);
+  abline(h=-log10(significant),lty=2,col='red',lwd=1)
+  palette(oldPal);
+  title(title);
 }
+
 
 #GRM
 GRM_SaveAsPdf <- function(path){

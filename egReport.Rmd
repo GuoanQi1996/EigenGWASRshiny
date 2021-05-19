@@ -16,69 +16,318 @@ params:
   pcut: 0.05
   height: 480
   width: 480
+  nn: 1
+  mm: 1
+  ne: 1
+  me: 1
+  GC: NULL
+  offDiag: NULL
+  Diag: NULL
+  hitDT: NULL
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(fig.align = 'center')
-#source("helper.R")
 ```
 
-```{r, manhattan,echo=FALSE}
-manhattan <- function(dataframe, colors=c("gray10", "gray50"), ymax="max", limitchromosomes=NULL, suggestiveline=-log10(1e-5), genomewideline=NULL, title="", annotate=NULL, ...) {
+```{r, plotFunc,echo=FALSE}
+# Prepare the compact summary of p-values for QQ-plot
+qqPlotCache = function(pvalues, ntests = NULL, ismlog10 = FALSE){
+  if(is.null(ntests))
+    ntests = length(pvalues);
   
-  d=dataframe
-  if (!("CHR" %in% names(d) & "BP" %in% names(d) & "P" %in% names(d))) stop("Make sure your data frame contains columns CHR, BP, and P")
-  if (!is.null(limitchromosomes)) {
-    d=d[d$CHR %in% limitchromosomes, ]
+  if(ismlog10) {
+    ypvs = pvalues;
+  } else {
+    ypvs = -log10(pvalues);
+  }
+  xpvs = -log10(seq_along(ypvs) / (ntests+1));
+  
+  if(is.unsorted(-ypvs))
+    ypvs = sort.int(ypvs, decreasing = TRUE);
+  
+  if(length(ypvs)*2 > ntests) {
+    lambda =
+      qchisq(p = 0.1^ypvs[ntests/2], df = 1, lower.tail = FALSE) / 
+      qchisq(p = 0.5, df = 1, lower.tail = FALSE);
+  } else {
+    lambda = NULL;
   }
   
-  d=subset(na.omit(d[order(d$CHR, d$BP), ]), (P>0 & P<=1)) # remove na's, sort, and keep only 0<P<=1
-  d$logp = -log10(d$P)
-  d$pos=NA
-  ticks=NULL
-  lastbase=0 #  colors <- rep(colors,max(d$CHR))[1:max(d$CHR)]
-  colors <- rep(colors,max(d$CHR))[1:length(unique(d$CHR))]
-  
-  if (ymax=="max") ymax<-ceiling(max(d$logp))
-  if (ymax<8) ymax<-8
-  numchroms=length(unique(d$CHR))
-  if (numchroms==1) {
-    d$pos=d$BP
-    ticks=floor(length(d$pos))/2+1
+  if(length(ypvs) > 1000) {
+    # need to filter a bit, make the plotting faster
+    levels = as.integer( (xpvs - xpvs[1])/(tail(xpvs,1) - xpvs[1]) * 2000);
+    keep = c(TRUE, diff(levels)!=0);
+    levels = as.integer( (ypvs - ypvs[1])/(tail(ypvs,1) - ypvs[1]) * 2000);
+    keep = keep | c(TRUE, diff(levels)!=0);
+    keep = which(keep);
+    ypvs = ypvs[keep];
+    xpvs = xpvs[keep];
   } else {
-    Uchr=unique(d$CHR)
-    for (i in 1:length(Uchr)) {
-      if (i==1) {
-        d[d$CHR==Uchr[i], ]$pos=d[d$CHR==Uchr[i], ]$BP
-      } else {
-        lastbase=lastbase+tail(subset(d, CHR==Uchr[i-1])$BP, 1)
-        d[d$CHR==Uchr[i], ]$pos=d[d$CHR==Uchr[i], ]$BP+lastbase
+    keep = seq_along(ypvs)
+  }
+  
+  qq = list(
+    xpvs = xpvs, # p-values expected under null
+    ypvs = ypvs, # observer p-values
+    keep = keep, # indices of the preserved p-values
+    ntests = ntests, # Number of tests
+    lambda = lambda  # Estimate of inflation factor lambda
+  );
+  class(qq) = "qqPlotInfo";
+  return(qq);
+}
+
+# Create QQ-plot from p-values or prepared summary
+qqPlotQ = function(
+  x, 
+  ntests = NULL, 
+  ismlog10 = FALSE, 
+  ci.level = 0.05, 
+  ylim = NULL, 
+  newplot = TRUE, 
+  col = "grey", 
+  cex = 0.5, 
+  yaxmax = NULL, 
+  lwd = 3, 
+  col.band = "red",
+  makelegend = TRUE,
+  title = "",
+  xlab = expression(
+    paste("\u2013", " log"[10]*"(", italic("P"), ") expected")),
+  ylab = expression(
+    paste("\u2013", " log"[10]*"(", italic("P"), "), observed"))
+){
+  
+  # Get compact summary of p-values for QQ-plot
+  if( methods::is(x, "qqPlotInfo") ){
+    qq = x;
+  } else {
+    qq = qqPlotPrepare(pvalues = x, ntests = ntests, ismlog10 = ismlog10);
+  }
+  
+  # Axis ranges
+  mx = head(qq$xpvs,1) * 1.05;
+  if( is.null(ylim) ) {
+    my = max(mx, head(qq$ypvs,1) * 1.05) ;
+    ylim = c(0, my);
+  } else {
+    my = ylim[2];
+  }
+  if(is.null(yaxmax))
+    yaxmax = floor(my);
+  
+  if(newplot){
+    plot(
+      x = NA, 
+      y = NA, 
+      ylim = ylim, 
+      xlim = c(0, mx), 
+      xaxs = "i", 
+      yaxs = "i", 
+      xlab = xlab,
+      ylab = ylab,
+      axes = FALSE);
+    axistep = floor(mx/5);
+    axis(1, seq(0, mx, axistep), lwd = lwd);
+    axistep = floor(yaxmax/5);
+    axis(2, seq(0, yaxmax, axistep), lwd = lwd);
+    abline(a = 0, b = 1, col = col.band, lwd = lwd, lty =2);
+    points(qq$xpvs, qq$ypvs, col = col, cex = cex, pch = 19);
+    
+    if( !is.null(ci.level) ){
+      if( (ci.level>0)&(ci.level<1) ){
+        quantiles = qbeta(
+          p = rep(c(ci.level/2,1-ci.level/2), each=length(qq$xpvs)), 
+          shape1 = qq$keep, 
+          shape2 = qq$ntests - qq$keep + 1);
+        quantiles = matrix(quantiles, ncol=2);
+        
+        lines( qq$xpvs, -log10(quantiles[,1]), col = col.band, lwd = lwd, lty =2);
+        lines( qq$xpvs, -log10(quantiles[,2]), col = col.band, lwd = lwd, lty =2);
       }
-      ticks=c(ticks, d[d$CHR==Uchr[i], ]$pos[floor(length(d[d$CHR==Uchr[i], ]$pos)/2)+1])
+    }
+    if(makelegend){
+      if( !is.null(ci.level) ){
+        legend(
+          "topleft", 
+          legend = c(
+            expression(paste(italic("Raw P"), " value")),
+            expression(paste(lambda[GC],italic(" corrected P")," value")),
+            sprintf("%.0f%% CI",100-ci.level*100)),
+          lwd = c(0, 0, lwd), 
+          pch = c(19, 19, NA_integer_), 
+          lty = c(0, 0, 2), 
+          col = c(col, "darkblue", col.band),
+          box.col = "transparent",
+          bg = "transparent");
+      } else {
+        legend(
+          "topleft", 
+          legend = c(
+            expression(paste(italic("Raw P"), " value")),
+            expression(paste(lambda[GC],italic(" corrected P")," value"))
+          ),
+          lwd = c(0, 0), 
+          pch = c(19, 19), 
+          lty = c(0, 0), 
+          col = c(col, "darkblue"),
+          box.col = "transparent",
+          bg = "transparent");
+      }
+    }
+    title(title);
+  } else {
+    points(qq$xpvs, qq$ypvs, col = "darkblue", cex = cex, pch = 19);
+  }
+  
+  #if( !is.null(qq$lambda) ){
+  #    lastr = sprintf("%.3f", qq$lambda);
+  #    legend("bottom", legend = bquote(lambda == .(lastr)), bty = "n")
+  #}
+  return(invisible(qq));
+}
+
+# Prepare the compact summary of p-values for Manhattan plot
+manhattanCache = function(
+  pvalues,
+  chr,
+  pos,
+  ismlog10 = FALSE,
+  chrmargins = 5e6){
+  # chr = locs[,1]; pos = locs[,2]; pvalues = mwas[,3]
+  # z = getMWASandLocations(param)
+  # chr = z$chr; pos = z$start; pvalues = z$`p-value`; 
+  # ismlog10 = FALSE; chrmargins = 0;
+  
+  stopifnot( length(pvalues) == length(chr) );
+  stopifnot( length(pvalues) == length(pos) );
+  
+  # Factorize chromosome
+  if(is.double(chr))
+    chr = as.integer(chr);
+  if(is.character(chr))
+    chr = factor(chr);
+  if(is.integer(chr)) {
+    levels(chr) = as.character(seq_len(tail(chr,1)));
+    class(chr) = "factor";
+  }
+  
+  # max of each chromosome
+  poslist = split(pos, chr, drop = FALSE);
+  poslist[vapply(poslist, length, 0)==0] = list(0);
+  chrmax = vapply(poslist, max, 0) + 0;# + chrmargins;
+  
+  # chromosome starts on the plot
+  names(chrmax) = NULL;
+  offsets = c(0, cumsum(chrmax)) + chrmargins;
+  names(offsets)[seq_along(poslist)] = levels(chr);
+  
+  # within plot coordinates
+  x0 = offsets[unclass(chr)] + pos;
+  if(ismlog10) {
+    y0 = pvalues;
+  } else {
+    y0 = -log10(pvalues);
+  }
+  
+  # Prune the data
+  yfac = as.integer(y0*100)+1L;
+  yorder = sort.list(yfac);
+  levels(yfac) = as.character(seq_len(max(yfac)));
+  class(yfac) = "factor";
+  
+  ygroup = split(seq_along(yfac), yfac);
+  for( i in seq_along(ygroup)){ # i=1
+    if( length(ygroup[[i]]) > 300 ){
+      ygroup[[i]] = sample(ygroup[[i]], size = 300, replace = FALSE);
     }
   }
-  if (numchroms==1) {
-    with(d, plot(main=title, pos, logp, ylim=c(0,ymax), ylab=expression(-log[10](italic(p))), xlab=paste("Chromosome",unique(d$CHR),"position"), ...))
+  # sum(vapply(ygroup, length, 0))
+  keep = unlist(ygroup, use.names = FALSE);
+  
+  # Color code
+  colindex = unclass(chr);
+  
+  # Chromosome names
+  chrnames = gsub("chr", "", levels(chr));
+  
+  # Return minimum object;
+  man = list(
+    x = x0[keep],
+    y = y0[keep],
+    colindex = colindex[keep],
+    offsets = offsets,
+    chrnames = chrnames,
+    chrmargins = chrmargins
+  );
+  class(man) = "manPlotInfo";
+  return(man);
+}
+
+# Create Manhattan plot from prepared summary
+manhattan = function(
+  man,
+  ylim = NULL,
+  colorSet = c("steelblue4", "#2C82D1", "#4CB2D1"),
+  yaxmax = NULL,
+  significant = 1e-5,
+  lwd = 3,
+  cex = 1,
+  title = ""){
+  
+  if( !methods::is(man, "manPlotInfo") )
+    stop("The \"man\" parameter is not produced by manPlotPrepare().");
+  
+  # Axis ranges
+  if(is.null(ylim)) {
+    my = max(man$y) * 1.05;
+    ylim = c(0,my);
   } else {
-    with(d, plot(main=title, pos, logp, ylim=c(0,ymax), ylab=expression(-log[10](italic(p))), xlab="Chromosome", xaxt="n", type="n", ...))
-    axis(1, at=ticks, lab=unique(d$CHR), ...)
-    icol=1
-    Uchr=unique(d$CHR)
-    for (i in 1:length(Uchr)) {
-      with(d[d$CHR==Uchr[i], ], points(pos, logp, col=colors[icol], ...))
-      icol=icol+1
-    }
+    my = ylim[2];
   }
-  if (!is.null(annotate)) {
-    d.annotate=d[which(d$SNP %in% annotate), ]
-    with(d.annotate, points(pos, logp, col="green3", ...))
-  }
-  #  if (suggestiveline) abline(h=suggestiveline, col="blue")
-  if (!is.null(genomewideline)) {
-    abline(h=genomewideline, col="gray")
-  } else {
-    abline(h=-log10(0.05/nrow(d)), col="gray")    
-  }
+  if(is.null(yaxmax))
+    yaxmax = floor(my);
+  
+  # Plot frame
+  plot(
+    x = NA,
+    y = NA, 
+    xlim = c(0, tail(man$offsets,1)), 
+    ylim = ylim, 
+    xaxs = "i", 
+    yaxs = "i",
+    xlab = "Chromosome", 
+    ylab = expression(
+      paste("\u2013", " log"[10]*"(", italic("p"), ")")),
+    axes = FALSE);
+  axis(
+    side = 1,
+    at = man$offsets,
+    labels = rep("", length(man$offsets)),
+    lwd = lwd);
+  axis(
+    side = 1,
+    at = (man$offsets[-1] + man$offsets[-length(man$offsets)])/2,
+    labels = man$chrnames,
+    tick = FALSE,
+    lwd = lwd);
+  axis(
+    side = 2,
+    at = seq(0, yaxmax, floor(yaxmax/5)),
+    lwd = lwd);
+  
+  # plot points in palette color
+  oldPal = palette(colorSet);
+  points(
+    x = man$x,
+    y = man$y,
+    pch = 16,
+    col = ((man$colindex-1L) %% length(colorSet)) + 1L,
+    cex = cex);
+  abline(h=-log10(significant),lty=2,col='red',lwd=1)
+  palette(oldPal);
+  title(title);
 }
 ```
 
@@ -108,32 +357,25 @@ The distribution of the top-ranked eigenvalues and the projection of the samples
 ## 3 GRM
 ```{r, grm,echo=TRUE}
 layout(matrix(1:2, 1, 2))
-gz=gzfile(paste0(params$froot, ".grm.gz"))
-grm=read.table(gz, as.is = T)
-offDiag = grm[grm[,1]!=grm[,2], 4]
-Ne=-1/mean(offDiag/params$sc)
-Me=1/var(offDiag/params$sc)
-hist(offDiag/params$sc, main="Pairwise relatedness ", xlab="Self-Relatedness", breaks = 50)
+Ne=params$ne
+Me=params$me
+hist(params$offDiag/params$sc, main="Pairwise relatedness ", xlab="Self-Relatedness", breaks = 50)
         
-nn=nrow(read.table(paste0(params$froot, ".fam"), as.is = T))
-mm=nrow(read.table(paste0(params$froot, ".bim"), as.is = T))
+nn=params$nn
+mm=params$mm
 legend("topright", legend = c(paste0("ne=", format(Ne, digits=3, nsmall=2), ' [',nn, ']'), paste0("me=", format(Me, digits=3, nsmall=2), ' [',mm,']')), bty='n')
 
-hist(grm[grm[,1]==grm[,2],4]/params$sc, main="Diagonal relatedness", xlab="Relatedness score", breaks = 15)
+hist(params$Diag/params$sc, main="Diagonal relatedness", xlab="Relatedness score", breaks = 15)
 ```
 Relatedness score is defined as the pairwise relatedness for any pair of individuals as measured over genome-wide markers. It is often employed for the estimation for additive genetic variance, see VanRaden ([$J Dairy Sci, 2008, 91:4414-4423$](https://www.sciencedirect.com/science/article/pii/S0022030208709901)) for more details. $n_e$ is the effective sample size. If the samples are related to each other much, $n_e$ would be smaller than the real sample size (in square brackets). $m_e$ is the effective number of markers. When markers are in linkage equilibrium, $m_e$=$m$, the number of markers in study (in square brackets). Of note, when the sample has experienced, recent, strong selection, me can be very small, say less than 0.01$m$; however, it can be of demographic factors possible.
 
 ## 4 Eigenvalue vs $\lambda_{GC}$
 ```{r, ev,echo=TRUE}
 PC=params$espace
-Evev=read.table(paste0(params$froot, ".eigenval"), as.is = T)
-GC=array(0, dim=PC)
-for(i in 1:PC) {
-  eg = read.table(paste0(params$froot, ".", i, ".assoc.linear"), as.is = T, header = T)
-  GC[i] = qchisq(median(eg$P, na.rm = T), 1, lower.tail = F)/qchisq(0.5, 1)
-}
+Evev=evalF
+GC=params$GC
 
-egc=matrix(c(Evev[1:PC,1]/params$sc, GC), PC, 2, byrow = F)
+egc=matrix(c(Evev[1:PC]/params$sc, GC), PC, 2, byrow = F)
 egc_table = cbind(as.character(seq(1, PC)),as.data.frame(format(egc,digits = 3)))
 library(knitr)
 kable(egc_table, align = 'c',col.names = c("Eigenspace","Eigenvalue", "Genomic inflation factor"))
@@ -150,32 +392,32 @@ Manhattan plot and Q-Q plot for EigenGWAS scanning on the chosen eigenvector. Th
 ```{r, eGWAS, results="asis",fig.align="center",echo=TRUE}
 PC=params$espace
 froot = params$froot
-tophit = data.frame()
 
 for(i in 1:PC) {
-  EigenRes=read.table(paste0(froot, ".", i, ".assoc.linear"), as.is = T, header = T)
-  EigenRes=EigenRes[which(!is.na(EigenRes$P)),]
-  EigenRes$Praw=EigenRes$P
-  gc=qchisq(median(EigenRes$P), 1, lower.tail = F)/qchisq(0.5, 1, lower.tail = F)
-  EigenRes$P=pchisq((EigenRes$STAT)^2/gc, 1, lower.tail = F)
-  
   EigenResName = paste0(tempdir(),'/EgE',i,'.png')
   QQPlotName = paste0(tempdir(),'/QQE',i,'.png')
   if(!file.exists(EigenResName)){
+    EigenRes=read.table(paste0(froot, ".", i, ".assoc.linear"), as.is = T, header = T, 
+                        colClasses=c("numeric","character","numeric","NULL","NULL","NULL","NULL","numeric","numeric"))
+    EigenRes=EigenRes[which(!is.na(EigenRes$P)),]
+    EigenRes$Praw=EigenRes$P
+    gc=params$GC[i]
+    EigenRes$P=pchisq((EigenRes$STAT)^2/gc, 1, lower.tail = F)
+
     EigenRes_sig = EigenRes[EigenRes$P<=0.05,]
     EigenRes_no_sig = EigenRes[EigenRes$P>0.05,]
     EigenRes_com = rbind(EigenRes_sig,EigenRes_no_sig[sample(1:nrow(EigenRes_no_sig),0.6*nrow(EigenRes_no_sig)),])
-    chiseq=qchisq(seq(1/nrow(EigenRes_com), 1-1/nrow(EigenRes_com), length.out = nrow(EigenRes_com)), 1)
     
-    png(filename = EigenResName,width = params$width,height = params$height)
-    manhattan(EigenRes_com, genomewideline = -log10(params$pcut/nrow(EigenRes)), title=paste("eSpace ", i), pch=16, cex=0.3, bty='n')
+    man_cache = manhattanCache(pvalues = EigenRes_com$P,chr = as.character(EigenRes_com$CHR),pos = EigenRes_com$BP,ismlog10 = FALSE)
+    png(filename = EigenResName, width = params$width,height = params$height)
+    manhattan(man_cache,significant = 0.05/nrow(eg),cex = 0.4,colorSet = c("grey","darkblue"),title=paste0("ePC",i))
     dev.off()
     
+    qq_cache_raw = qqPlotCache(EigenRes$Praw)
+    qq_cache_gc = qqPlotCache(EigenRes$P)
     png(filename = QQPlotName,width = params$width,height = params$height)
-    qqplot(chiseq, qchisq(EigenRes_com$Praw, 1, lower.tail = F), xlab=expression(paste("Theoretical ", chi[1]^2)), ylab=expression(paste("Observed ", chi[1]^2)), bty="n", col="grey", pch=16, cex=0.5)
-    points(sort(chiseq), sort(qchisq(EigenRes_com$P, 1, lower.tail = F)), col="black", pch=16, cex=0.5)
-    legend("topleft", legend = c("Raw", expression(lambda[gc])), pch=16, cex=1, col=c("grey", "black"), bty='n')
-    abline(a=0, b=1, col="red", lty=2)
+    qqPlotQ(qq_cache_raw,ci.level = NULL, cex = 0.4,title=paste0("ePC",pcIdx))
+    qqPlotQ(qq_cache_gc,ci.level = NULL,newplot = F, cex = 0.4)
     dev.off()
   }
   cat("\n<center>\n")
@@ -184,14 +426,9 @@ for(i in 1:PC) {
   cat("\n<center>\n")
   cat(paste0("![](",QQPlotName,")"),"\n")
   cat("\n</center>\n")
-
-  EigenRes$Espace = rep(i,dim(EigenRes)[1])
-  tophit = rbind(tophit, EigenRes[order(EigenRes$P),][c(1:10),c("Espace","CHR","SNP","BP","P","Praw")])
 }
-
-tophit[,c(5,6)] = format(tophit[,c(5,6)],digits = 4)
 # When kable() is wrapped insiade other expression such as for loop, print(kable()) must be explicit
-knitr::kable(tophit,
+knitr::kable(params$hitDT,
              caption = "Top hits in each espace", 
              col.names = c("Espace", "CHR", "SNP", "BP", "P", "Praw"),
              row.names = FALSE,
