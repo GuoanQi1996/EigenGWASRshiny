@@ -23,7 +23,7 @@ setwd("/home/your_name/EigenGWAS/")
 library(shiny)
 runApp()
 ~~~
-Normally for most of the users working with Windows/MacOS/Unbuntu etc., there should be a window or browser tab pops up, EigenWGAS is then ready for the analysis.
+Normally for most of the users working with Windows/MacOS/Unbuntu etc., there should be a window or browser tab pops up, EigenGWAS is then ready for the analysis.
 For some of the linux OS without displays, LAN remote access can be used for the EigenGWAS Shiny.
 ~~~
 # This is an R console
