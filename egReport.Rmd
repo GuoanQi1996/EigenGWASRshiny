@@ -410,7 +410,7 @@ for(i in 1:PC) {
     
     man_cache = manhattanCache(pvalues = EigenRes_com$P,chr = as.character(EigenRes_com$CHR),pos = EigenRes_com$BP,ismlog10 = FALSE)
     png(filename = EigenResName, width = params$width,height = params$height)
-    manhattan(man_cache,significant = 0.05/nrow(eg),cex = 0.4,colorSet = c("grey","darkblue"),title=paste0("ePC",i))
+    manhattan(man_cache,significant = 0.05/nrow(EigenRes),cex = 0.4,colorSet = c("grey","darkblue"),title=paste0("ePC",i))
     dev.off()
     
     qq_cache_raw = qqPlotCache(EigenRes$Praw)
