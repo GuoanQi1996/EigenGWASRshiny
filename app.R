@@ -440,7 +440,6 @@ server <- function(input, output, session) {
         eg_sig = eg[eg$P<=0.05,]
         eg_no_sig = eg[eg$P>0.05,]
         eg_com = rbind(eg_sig,eg_no_sig[sample(1:nrow(eg_no_sig),0.6*nrow(eg_no_sig)),])
-        eg_com$P[which(eg_com$P==0)] = 1e-300
         assign(paste0("EgResPlot",i),eg_com)
         
         eg$Espace = rep(i,dim(eg)[1])
@@ -511,6 +510,7 @@ server <- function(input, output, session) {
         print(paste0("EG ePC ", pcIdx))
         
         EigenRes = get(paste0("EgResPlot",pcIdx))
+        EigenRes$P[which(EigenRes$P==0)] = 1e-300
         man_cache = manhattanCache(pvalues = EigenRes$P,chr = EigenRes$CHR,pos = EigenRes$BP,ismlog10 = FALSE)
         png(filename = paste0(tempdir(),'/EgE',pcIdx,'.png'),width = width,height = height)
         manhattan(man_cache,significant = 0.05/nrow(eg),cex = 0.4,colorSet = c("grey","darkblue"),title=paste0("ePC",pcIdx))
@@ -537,6 +537,8 @@ server <- function(input, output, session) {
         pcIdx=input$EigenGWASPlot_espace[1]
         
         EigenRes = get(paste0("EgResDT",pcIdx))
+        EigenRes$P[which(EigenRes$P==0)] = 1e-300
+        EigenRes$Praw[which(EigenRes$Praw==0)] = 1e-300
         qq_cache_raw = qqPlotCache(EigenRes$Praw)
         qq_cache_gc = qqPlotCache(EigenRes$P)
         #QQplot
