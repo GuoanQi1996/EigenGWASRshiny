@@ -10,15 +10,18 @@ source('helper.R')
 unzip = "unzip -o -q plink.zip"
 plink2 = "./plink_mac --allow-extra-chr"
 if(length(grep("linux",sessionInfo()$platform, ignore.case = TRUE))>0) {
+  sys.version = "linux"
   print("linux")
   system(paste0(unzip," plink_linux"))
   plink2 = "./plink_linux --allow-extra-chr"
 } else if(length(grep("apple",sessionInfo()$platform, ignore.case = TRUE))>0) {
+  sys.version = "apple"
   print("apple")
   system(paste0(unzip," plink_mac"))
   plink2 = "./plink_mac --allow-extra-chr"
   #  system("git rev-list head --max-count 1 > gitTag.txt")
 } else {
+  sys.version = "windows"
   print("windows")
   system("expand plink.cab plink_win.exe")
   plink2 = "plink_win.exe --allow-extra-chr"
@@ -630,7 +633,11 @@ server <- function(input, output, session) {
       
       output$fReport <- downloadHandler(
         filename = function(){
-          paste0("FullReports.zip")
+          if (sys.version == "windows"){
+            return(paste0("FullReports.gz"))
+          } else {
+            return(paste0("FullReports.zip"))
+          }
         },
         content = function(file) {
           pcIdx=input$EigenGWASPlot_espace[1]
@@ -649,7 +656,12 @@ server <- function(input, output, session) {
               write.table(EigenRes,fname,quote=F,col.names = T,row.names = F)
               files = c(fname,files)
             }
-            zip(file,files)
+            if (sys.version == "windows"){
+                tar(file,files,compression = "gzip",tar = "internal")
+              } else {
+                zip(file,files)
+              }
+            
           })
         })
     })
