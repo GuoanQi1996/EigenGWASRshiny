@@ -12,9 +12,9 @@ Run the commands below to initialize EigenGWAS Shiny.
 ~~~
 # This is an R console
 
-# R packages shiny, bsplus and rmarkdown is required in EigenGWAS
+# R packages shiny, bsplus, zip and rmarkdown is required in EigenGWAS
 # Install them if they are not all set in your system
-install.packages(c("shiny","bsplus","rmarkdown"))
+install.packages(c("shiny","bsplus","zip","rmarkdown"))
 
 # Before start the app, be sure to set the directory of zipped source codes, specifically the file contains the "app.R", as the working directory
 # For example if you unzipped the source code at /home/your_name/EigenGWAS/, then you should run
