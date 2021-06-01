@@ -403,6 +403,8 @@ for(i in 1:PC) {
     EigenRes$Praw=EigenRes$P
     gc=params$GC[i]
     EigenRes$P=pchisq((EigenRes$STAT)^2/gc, 1, lower.tail = F)
+    EigenRes$P[which(EigenRes$P==0)] = 1e-300
+    EigenRes$Praw[which(EigenRes$Praw==0)] = 1e-300
 
     EigenRes_sig = EigenRes[EigenRes$P<=0.05,]
     EigenRes_no_sig = EigenRes[EigenRes$P>0.05,]
@@ -416,7 +418,7 @@ for(i in 1:PC) {
     qq_cache_raw = qqPlotCache(EigenRes$Praw)
     qq_cache_gc = qqPlotCache(EigenRes$P)
     png(filename = QQPlotName,width = params$width,height = params$height)
-    qqPlotQ(qq_cache_raw,ci.level = NULL, cex = 0.4,title=paste0("ePC",pcIdx))
+    qqPlotQ(qq_cache_raw,ci.level = NULL, cex = 0.4,title=paste0("ePC",i))
     qqPlotQ(qq_cache_gc,ci.level = NULL,newplot = F, cex = 0.4)
     dev.off()
   }
