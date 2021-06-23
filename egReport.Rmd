@@ -359,13 +359,13 @@ The distribution of the top-ranked eigenvalues and the projection of the samples
 layout(matrix(1:2, 1, 2))
 Ne=params$ne
 Me=params$me
-hist(params$offDiag/params$sc, main="Pairwise relatedness ", xlab="Self-Relatedness", breaks = 50)
+hist(params$offDiag/params$sc, main="Pairwise relatedness", xlab="Relatedness score", breaks = 50)
         
 nn=params$nn
 mm=params$mm
 legend("topright", legend = c(paste0("ne=", format(Ne, digits=3, nsmall=2), ' [',nn, ']'), paste0("me=", format(Me, digits=3, nsmall=2), ' [',mm,']')), bty='n')
 
-hist(params$Diag/params$sc, main="Diagonal relatedness", xlab="Relatedness score", breaks = 15)
+hist(params$Diag/params$sc, main="Self-relatedness", xlab="Relatedness score", breaks = 15)
 ```
 Relatedness score is defined as the pairwise relatedness for any pair of individuals as measured over genome-wide markers. It is often employed for the estimation for additive genetic variance, see VanRaden ([$J Dairy Sci, 2008, 91:4414-4423$](https://www.sciencedirect.com/science/article/pii/S0022030208709901)) for more details. $n_e$ is the effective sample size. If the samples are related to each other much, $n_e$ would be smaller than the real sample size (in square brackets). $m_e$ is the effective number of markers. When markers are in linkage equilibrium, $m_e$=$m$, the number of markers in study (in square brackets). Of note, when the sample has experienced, recent, strong selection, me can be very small, say less than 0.01$m$; however, it can be of demographic factors possible.
 
