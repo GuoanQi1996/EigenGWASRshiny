@@ -128,7 +128,7 @@ qqPlotQ = function(
   if( methods::is(x, "qqPlotInfo") ){
     qq = x;
   } else {
-    qq = qqPlotPrepare(pvalues = x, ntests = ntests, ismlog10 = ismlog10);
+    qq = qqPlotCache(pvalues = x, ntests = ntests, ismlog10 = ismlog10);
   }
   
   # Axis ranges
@@ -154,6 +154,9 @@ qqPlotQ = function(
       ylab = ylab,
       axes = FALSE);
     axistep = floor(mx/5);
+    if(axistep<1){
+      axistep = 1
+    }
     axis(1, seq(0, mx, axistep), lwd = lwd);
     axistep = floor(yaxmax/5);
     axis(2, seq(0, yaxmax, axistep), lwd = lwd);
@@ -219,7 +222,7 @@ manhattanCache = function(
   chr,
   pos,
   ismlog10 = FALSE,
-  chrmargins = 5e6){
+  chrmargins = 1){
   # chr = locs[,1]; pos = locs[,2]; pvalues = mwas[,3]
   # z = getMWASandLocations(param)
   # chr = z$chr; pos = z$start; pvalues = z$`p-value`; 
