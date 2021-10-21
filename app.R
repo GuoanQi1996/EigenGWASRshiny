@@ -281,7 +281,7 @@ ui <- fluidPage(
       tags$h3("Citation"),
       tags$p(HTML("<a href=\"https://www.nature.com/articles/hdy201625\" target=\"_blank\">Chen, G.B. et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, Heredity, 2016, 117:51-61.</a>")),
       tags$br(),
-      tags$p(HTML("<a href=\"https://onlinelibrary.wiley.com/doi/full/10.1111/1755-0998.13370\" target=\"_blank\">Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, <i>Molecular Ecology Resource</i>, 2021, <i>00</i>:1-13.</a>")),      tags$br(),
+      tags$p(HTML("<a href=\"https://onlinelibrary.wiley.com/doi/full/10.1111/1755-0998.13370\" target=\"_blank\">Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, <i>Molecular Ecology Resource</i>, 2021, <i>21</i>:1732-1744.</a>")),      tags$br(),
       tags$p(HTML(paste("Git version:", gTag[1,1])))
       
     )
@@ -472,7 +472,7 @@ server <- function(input, output, session) {
         layout(matrix(1:2, 1, 2))
         hist(off_diagnol/sc, main="Pairwise relatedness", xlab="Relatedness score", breaks = 50,freq = F)
         x=seq(range(off_diagnol/sc)[1],range(off_diagnol/sc)[2],length.out = 100)
-        y=dnorm(x,-1/nn,sqrt(1/Me))
+        y=dnorm(x,-1/Ne,sqrt(1/Me))
         lines(x,y,col="red",lwd=2)
         
         Ne=format(Ne, digits=3, nsmall=2)

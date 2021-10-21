@@ -441,7 +441,7 @@ knitr::kable(params$hitDT,
 ## 6 Citation
 [Chen, G.B. et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, Heredity, 2016, 117:51-61.](https://www.nature.com/articles/hdy201625)
 
-[Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, Molecular Ecology Resources, 2021, 00:1-13.](https://onlinelibrary.wiley.com/doi/10.1111/1755-0998.13370)
+[Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, Molecular Ecology Resources, 2021, 21:1732-1744.](https://onlinelibrary.wiley.com/doi/10.1111/1755-0998.13370)
 
 ## 7 Logs
 ```{r, logs,echo=FALSE}

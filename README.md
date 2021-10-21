@@ -3,6 +3,13 @@ The core algorithm of this online platform is implemented in efficient C languag
 
 Online tool is now available at www.eigengwas.com.  
 
+If you find our method and application useful, please cite our publications in your work.
+~~~
+Qi, G.-A., Zheng, Y.-T., Lin, F., Huang, X., Duan, L.-W., You, Y., Liu, H., Wang, Y., Xu, H.-M. and Chen, G.-B. (2021), EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection. Mol Ecol Resour, 21: 1732-1744. https://doi.org/10.1111/1755-0998.13370
+
+Chen, GB., Lee, S., Zhu, ZX. et al. EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations. Heredity 117, 51–61 (2016). https://doi.org/10.1038/hdy.2016.25
+~~~ 
+
 You can easily deploy EigenGWAS directly at you PC/sever by the followings.  
 ###   -Download the source codes of EigenGWAS Shiny
 Find the download link at the homepage **Code** button or **Releases** panel, download the zipped source codes.
