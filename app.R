@@ -279,7 +279,7 @@ ui <- fluidPage(
       tags$p(HTML("<a href=\"https://github.com/gc5k/GEAR\" target=\"_blank\">GitHub repository: GEAR.</a>")),
       tags$br(),
       tags$h3("Citation"),
-      tags$p(HTML("<a href=\"https://www.nature.com/articles/hdy201625\" target=\"_blank\">Chen, G.B. et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, Heredity, 2016, 117:51-61.</a>")),
+      tags$p(HTML("<a href=\"https://www.nature.com/articles/hdy201625\" target=\"_blank\">Chen, G.B. et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, <i>Heredity</i>, 2016, <i>117</i>:51-61.</a>")),
       tags$br(),
       tags$p(HTML("<a href=\"https://onlinelibrary.wiley.com/doi/full/10.1111/1755-0998.13370\" target=\"_blank\">Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, <i>Molecular Ecology Resource</i>, 2021, <i>21</i>:1732-1744.</a>")),      tags$br(),
       tags$p(HTML(paste("Git version:", gTag[1,1])))
