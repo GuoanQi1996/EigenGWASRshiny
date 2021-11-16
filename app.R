@@ -7,21 +7,21 @@ library(bsplus)
 # Source helpers ----
 source('helper.R')
 
-unzip = "unzip -o -q plink.zip"
-plink2 = "./plink_mac --allow-extra-chr"
+unzip = "unzip -o -q plink2.zip"
+plink2 = "./plink2_mac --allow-extra-chr"
 if(length(grep("linux",sessionInfo()$platform, ignore.case = TRUE))>0) {
   print("linux")
-  zip::unzip("plink.zip","plink_linux",overwrite = T)
-  plink2 = "./plink_linux --allow-extra-chr"
+  zip::unzip("plink2.zip","plink2_linux",overwrite = T)
+  plink2 = "./plink2_linux --allow-extra-chr"
 } else if(length(grep("apple",sessionInfo()$platform, ignore.case = TRUE))>0) {
   print("apple")
-  zip::unzip("plink.zip","plink_mac",overwrite = T)
-  plink2 = "./plink_mac --allow-extra-chr"
+  zip::unzip("plink2.zip","plink2_mac",overwrite = T)
+  plink2 = "./plink2_mac --allow-extra-chr"
   #  system("git rev-list head --max-count 1 > gitTag.txt")
 } else {
   print("windows")
-  zip::unzip("plink.zip","plink_win.exe",overwrite = T)
-  plink2 = "plink_win.exe --allow-extra-chr"
+  zip::unzip("plink2.zip","plink2_win.exe",overwrite = T)
+  plink2 = "plink2_win.exe --allow-extra-chr"
 }
 
 options(shiny.maxRequestSize=conf[1,2]*1024^2, shiny.launch.browser=T)
@@ -279,9 +279,10 @@ ui <- fluidPage(
       tags$p(HTML("<a href=\"https://github.com/gc5k/GEAR\" target=\"_blank\">GitHub repository: GEAR.</a>")),
       tags$br(),
       tags$h3("Citation"),
-      tags$p(HTML("<a href=\"https://www.nature.com/articles/hdy201625\" target=\"_blank\">Chen, G.B. et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, <i>Heredity</i>, 2016, <i>117</i>:51-61.</a>")),
+      tags$p(HTML("<a href=\"https://www.nature.com/articles/hdy201625\" target=\"_blank\">G-B Chen, et al, EigenGWAS: finding loci under selection through genome-wide association studies of eigenvectors in structured populations, <i>Heredity</i>, 2016, <i>117</i>:51-61.</a>")),
       tags$br(),
-      tags$p(HTML("<a href=\"https://onlinelibrary.wiley.com/doi/full/10.1111/1755-0998.13370\" target=\"_blank\">Guo-An Qi et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, <i>Molecular Ecology Resource</i>, 2021, <i>21</i>:1732-1744.</a>")),      tags$br(),
+      tags$p(HTML("<a href=\"https://onlinelibrary.wiley.com/doi/full/10.1111/1755-0998.13370\" target=\"_blank\">G-A Qi, et al, EigenGWAS: An online visualizing and interactive application for detecting genomic signatures of natural selection, <i>Molecular Ecology Resource</i>, 2021, <i>21</i>:1732-1744.</a>")),      
+      tags$br(),
       tags$p(HTML(paste("Git version:", gTag[1,1])))
       
     )
@@ -346,7 +347,7 @@ server <- function(input, output, session) {
         frootMAF=froot
       } else {
         frootMAF=paste0(froot, "_t") 
-        frqMAF=paste(plink2, "--allow-no-sex --bfile", froot, "--autosome-num", input$autosome, "--maf", input$maf_cut, "--make-bed --out", frootMAF)
+        frqMAF=paste(plink2, "--bfile", froot, "--autosome-num", input$autosome, "--maf", input$maf_cut, "--make-bed --out", frootMAF)
         system(frqMAF)
       }
 
@@ -380,17 +381,19 @@ server <- function(input, output, session) {
       
       incProgress(2/n, detail = paste0(" making grm and conduct PCA ..."))
       if (as.numeric(input$proportion)==1){
-        grmCmd=paste(plink2, "--allow-no-sex --bfile", froot, "--autosome-num", input$autosome, "--make-grm-gz --pca", pcRun, "--out", froot)
+        grmCmd=paste(plink2, "--bfile", froot, "--autosome-num", input$autosome, "--make-grm-bin --pca", pcRun, "--out", froot)
       } else {
-        grmCmd=paste(plink2, "--allow-no-sex --bfile", froot, "--autosome-num", input$autosome, "--make-grm-gz --pca", pcRun, "--out", froot,"--thin",as.numeric(input$proportion))
+        grmCmd=paste(plink2, "--bfile", froot, "--autosome-num", input$autosome, "--make-grm-bin --pca", pcRun, "--out", froot,"--thin",as.numeric(input$proportion))
       }
       system(grmCmd)
 
       #EigenGWAS
+      incProgress(1/n, detail = paste0(" scanning eigen space "))
+      pcF=read.table(paste0(froot,".eigenvec"),header=F)
+      colnames(pcF)=c("#FID","IID",paste0("PC",1:pcRun))
+      write.table(pcF[,c(1:(2+PC))],paste0(froot,".scan.eigenvec"),quote=F,row.names = F,col.names = T)
       for(i in 1:PC) {
-        incProgress(1/n, detail = paste0(" scanning eigen space ", i))
-        outRoot=paste0(froot, ".", i)
-        liCmd=paste0(plink2, " --allow-no-sex --linear --bfile ", froot, " --autosome-num ", input$autosome, " --pheno ", froot, ".eigenvec --mpheno ", i," --out ", outRoot)
+        liCmd=paste0(plink2, " --glm allow-no-covars --no-psam-pheno --bfile ", froot, " --autosome-num ", input$autosome, " --pheno ", froot, ".scan.eigenvec --out ", froot)
         system(liCmd)
       }
       incProgress(1/n, detail = paste0(" finishing EigenGWAS."))
@@ -407,19 +410,21 @@ server <- function(input, output, session) {
       n=4+PC
       
       incProgress(1/n, detail = paste0(" collecting MAF info  ... "))
-      fq=read.table(paste0(froot, ".frq"), as.is = T, header = T)
+      fq=read.table(paste0(froot, ".afreq"), as.is = T, header = F)
+      colnames(fq)=c("CHROM","ID","REF","ALT","ALT_FREQS","OBS_CT")
       
       incProgress(1/n, detail = paste0(" collecting PCA info ... "))
       evalF=read.table(paste0(froot, ".eigenval"), as.is = T)
-      pcF=read.table(paste0(froot, ".eigenvec"), as.is = T)
+      #pcF=read.table(paste0(froot, ".eigenvec"), as.is = T)
       evalF = as.numeric(evalF[,1])
       names(evalF) = c(1:pcRun)
       
       incProgress(1/n, detail = paste0(" collecting GRM info ... "))
-      gz=gzfile(paste0(froot, ".grm.gz"))
-      grm=read.table(gz, as.is = T)
-      diagnol = grm[grm[,1]==grm[,2],4]
-      off_diagnol = grm[grm[,1]!=grm[,2], 4]
+      #gz=gzfile(paste0(froot, ".grm.gz"))
+      gz=froot
+      grm=ReadGRMBin(gz)
+      diagnol = grm$diag
+      off_diagnol = grm$off
       Ne=-1/mean(off_diagnol/sc)
       Me=1/var(off_diagnol/sc)
       
@@ -427,7 +432,8 @@ server <- function(input, output, session) {
       GC = array(0, dim=PC)
       tophit = data.frame()
       for (i in 1:PC){
-        eg = read.table(paste0(froot, ".", i, ".assoc.linear"), as.is = T, header = T, colClasses = c("numeric","character","numeric","NULL","NULL","NULL","NULL","numeric","numeric"))
+        eg = read.table(paste0(froot, ".PC", i, ".glm.linear"), as.is = T, header = F, colClasses = c("numeric","numeric","character","NULL","NULL","NULL","NULL","NULL","NULL","NULL","numeric","numeric","NULL"))
+        colnames(eg)=c("CHR","BP","SNP","STAT","P")
         GC[i] = qchisq(median(eg$P, na.rm = T), 1, lower.tail = F)/qchisq(0.5, 1, lower.tail = F)
         
         eg = eg[which(!is.na(eg$P)),]
@@ -452,7 +458,7 @@ server <- function(input, output, session) {
       incProgress(1/n, detail = paste0(" Analysis complete. "))
       
       output$freq <- renderPlot({
-        hist(fq$MAF, main="Minor allele frequency", xlab="MAF", xlim=c(0, 0.5), breaks = 50)
+        hist(fq$ALT_FREQS, main="Minor allele frequency", xlab="MAF", xlim=c(0, 0.5), breaks = 50)
       })
       
       output$maf_note <- renderText({
@@ -579,13 +585,13 @@ server <- function(input, output, session) {
           if (!is.null(input$file_input$datapath)) {
             if ( !file.exists(paste0(froot, ".eigenval"))) {
               isRunable = FALSE
-            } else if (!file.exists(paste0(froot, ".frq"))) {
+            } else if (!file.exists(paste0(froot, ".afreq"))) {
               isRunable = FALSE
             } else if (!file.exists(paste0(froot, ".eigenvec"))) {
               isRunable = FALSE
             } else {
               for(i in 1:input$espace) {
-                if (!file.exists(paste0(froot, ".", i, ".assoc.linear"))) {
+                if (!file.exists(paste0(froot, ".PC", i, ".glm.linear"))) {
                   isRunable = FALSE
                 }
               }

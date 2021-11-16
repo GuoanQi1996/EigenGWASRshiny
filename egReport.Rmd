@@ -334,8 +334,9 @@ manhattan = function(
 # {.tabset .tabset-fade .tabset-pills}
 ## 1 MAF
 ```{r, maf,echo=TRUE}
-fq=read.table(paste0(params$froot, ".frq"), as.is = T, header = T)
-hist(fq$MAF, main="MAF", xlab="Minor allele frequency", xlim=c(0, 0.5), breaks = 50)
+fq=read.table(paste0(froot, ".afreq"), as.is = T, header = F)
+colnames(fq)=c("CHROM","ID","REF","ALT","ALT_FREQS","OBS_CT")
+hist(fq$ALT_FREQS, main="MAF", xlab="Minor allele frequency", xlim=c(0, 0.5), breaks = 50)
 ```
 Minor allele frequency distribution of the sample.
 
@@ -397,7 +398,7 @@ for(i in 1:PC) {
   EigenResName = paste0(tempdir(),'/EgE',i,'.png')
   QQPlotName = paste0(tempdir(),'/QQE',i,'.png')
   if(!file.exists(EigenResName)){
-    EigenRes=read.table(paste0(froot, ".", i, ".assoc.linear"), as.is = T, header = T, 
+    EigenRes=read.table(paste0(froot, ".PC", i, ".glm.linear"), as.is = T, header = T, 
                         colClasses=c("numeric","character","numeric","NULL","NULL","NULL","NULL","numeric","numeric"))
     EigenRes=EigenRes[which(!is.na(EigenRes$P)),]
     EigenRes$Praw=EigenRes$P
