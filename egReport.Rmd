@@ -398,8 +398,9 @@ for(i in 1:PC) {
   EigenResName = paste0(tempdir(),'/EgE',i,'.png')
   QQPlotName = paste0(tempdir(),'/QQE',i,'.png')
   if(!file.exists(EigenResName)){
-    EigenRes=read.table(paste0(froot, ".PC", i, ".glm.linear"), as.is = T, header = T, 
-                        colClasses=c("numeric","character","numeric","NULL","NULL","NULL","NULL","numeric","numeric"))
+    EigenRes=read.table(paste0(froot, ".PC", i, ".glm.linear"), as.is = T, header = F, 
+                        colClasses = c("numeric","numeric","character","NULL","NULL","NULL","NULL","NULL","NULL","NULL","numeric","numeric","NULL"))
+    colnames(EigenRes)=c("CHR","BP","SNP","STAT","P")
     EigenRes=EigenRes[which(!is.na(EigenRes$P)),]
     EigenRes$Praw=EigenRes$P
     gc=params$GC[i]
