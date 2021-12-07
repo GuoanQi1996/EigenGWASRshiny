@@ -54,6 +54,9 @@ firewall-cmd --zone=public --add-port=1234/tcp --permanent
 # note
 # --zone: scope zone
 # --permanent: set options permanently, a change will only be part of the runtime configuration without this option
+
+# reload firewall configuration
+firewall-cmd --reload
 ~~~
 
 All platforms support.
