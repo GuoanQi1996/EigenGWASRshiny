@@ -12,10 +12,12 @@ plink2 = "./plink2_mac --allow-extra-chr"
 if(length(grep("linux",sessionInfo()$platform, ignore.case = TRUE))>0) {
   print("linux")
   zip::unzip("plink2.zip","plink2_linux",overwrite = T)
+  system("chmod a+x plink2_linux")
   plink2 = "./plink2_linux --allow-extra-chr"
 } else if(length(grep("apple",sessionInfo()$platform, ignore.case = TRUE))>0) {
   print("apple")
   zip::unzip("plink2.zip","plink2_mac",overwrite = T)
+  system("chmod a+x plink2_mac")
   plink2 = "./plink2_mac --allow-extra-chr"
   #  system("git rev-list head --max-count 1 > gitTag.txt")
 } else {
