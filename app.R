@@ -394,10 +394,10 @@ server <- function(input, output, session) {
       pcF=read.table(paste0(froot,".eigenvec"),header=F)
       colnames(pcF)=c("#FID","IID",paste0("PC",1:pcRun))
       write.table(pcF[,c(1:(2+PC))],paste0(froot,".scan.eigenvec"),quote=F,row.names = F,col.names = T)
-      for(i in 1:PC) {
-        liCmd=paste0(plink2, " --glm allow-no-covars --no-psam-pheno --bfile ", froot, " --autosome-num ", input$autosome, " --pheno ", froot, ".scan.eigenvec --out ", froot)
-        system(liCmd)
-      }
+      
+      liCmd=paste0(plink2, " --glm allow-no-covars --no-psam-pheno --bfile ", froot, " --autosome-num ", input$autosome, " --pheno ", froot, ".scan.eigenvec --out ", froot)
+      system(liCmd)
+      
       incProgress(1/n, detail = paste0(" finishing EigenGWAS."))
       time2 = proc.time()
       time = (time2-time1)[3][[1]]
